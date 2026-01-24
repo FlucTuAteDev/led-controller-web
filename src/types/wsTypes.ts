@@ -11,11 +11,12 @@ export const LEDControllerParameter = {
 	COLOR_TEMPERATURE: 1,
 	ON_EFFECT: 2,
 	OFF_EFFECT: 3,
+	ON_EFFECT_PARAMETER: 4,
+	OFF_EFFECT_PARAMETER: 5,
 } as const;
 export type LEDControllerParameter = ObjectValues<typeof LEDControllerParameter>;
 
 export const EffectParameter = {
-	TYPE: -1,
 	DURATION: 0,
 	START_LED_INDEX: 1,
 } as const;
