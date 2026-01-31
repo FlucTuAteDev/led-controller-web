@@ -41,10 +41,8 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
 			data-slot="slider-thumb"
 			class="bg-white border-primary ring-ring/50 block size-4 shrink-0 rounded-full border shadow-sm transition-[color,box-shadow] hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50"
 		>
-			<div class="w-fit relative -translate-x-1/2 left-1.5 top-5" v-if="showThumbValue">
-				<slot name="thumb-value" v-bind="{ value }">
-					{{ value }}
-				</slot>
+			<div v-if="$slots['thumb-value']" class="w-fit relative -translate-x-1/2 left-1.5 top-5">
+				<slot name="thumb-value" v-bind="{ value }"></slot>
 			</div>
 		</SliderThumb>
 	</SliderRoot>

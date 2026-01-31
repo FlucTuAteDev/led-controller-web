@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { provide, ref, watch } from 'vue';
+import { computed, provide, ref, watch, watchEffect } from 'vue';
 
 import EffectPanel from '@/components/EffectPanel.vue';
 import { Button } from '@/components/ui/button';
@@ -10,37 +10,105 @@ import { initialStateInjectionKey } from '@/injectionKeys';
 import { sendMessageToMCUThrottled } from '@/lib/mcu';
 import { stateChanged } from '@/store/stateChanged';
 import { Command } from '@/types/wsTypes';
-import { getColorFromBrightnessAndColorTemperature } from '@/utils/color';
-import { roundDownToNearest } from '@/utils/math';
+import { getColorFromBrightnessAndColdBrightness } from '@/utils/color';
+import { lerp, roundDownToNearest } from '@/utils/math';
+import { clamp } from 'lodash-es';
 import { Save } from 'lucide-vue-next';
 
 const initialState = await initialStatePromise;
 provide(initialStateInjectionKey, initialState);
 
-const brightness = ref([initialState.brightness]);
-const colorTemperature = ref([initialState.colorTemperature]);
+/**
+ * Brightness is the sum of the cold and warm brightness. It cannot be set to 0!
+ */
+const brightness = ref(initialState.brightness);
+const brightnessPercent = computed(() => {
+	return ((brightness.value / 510) * 100).toFixed(2);
+});
+
+const coldBrightness = ref(initialState.coldBrightness);
+/**
+ * colorTemperature is the ratio of the warm brightness to the cold brightness
+ */
+const colorTemperature = ref(getColorTemperature(initialState.brightness, initialState.coldBrightness));
+const colorTemperatureInKelvin = computed(
+	() => 3000 + roundDownToNearest((coldBrightness.value / brightness.value) * 3000, 10),
+);
+
+const minColdBrightness = computed(() => Math.max(brightness.value - 255, 0));
+const maxColdBrightness = computed(() => Math.min(brightness.value, 255));
+
+const gradient = computed(() => {
+	const left = { r: 0xff, g: 0xd2, b: 0x7f };
+	const right = { r: 0xbb, g: 0xdf, b: 0xff };
+	const middle = {
+		r: Math.round((left.r + right.r) / 2),
+		g: Math.round((left.g + right.g) / 2),
+		b: Math.round((left.b + right.b) / 2),
+	};
+
+	const t = minColdBrightness.value / 255;
+
+	const leftColor = {
+		r: lerp(left.r, middle.r, t),
+		g: lerp(left.g, middle.g, t),
+		b: lerp(left.b, middle.b, t),
+	};
+
+	const rightColor = {
+		r: lerp(right.r, middle.r, t),
+		g: lerp(right.g, middle.g, t),
+		b: lerp(right.b, middle.b, t),
+	};
+
+	return `linear-gradient(to right, rgb(${leftColor.r}, ${leftColor.g}, ${leftColor.b}), rgb(${rightColor.r}, ${rightColor.g}, ${rightColor.b}))`;
+});
 
 watch(brightness, (newBrightness) => {
 	stateChanged.value = true;
+
+	coldBrightness.value = clamp(
+		Math.round(newBrightness / (1 + colorTemperature.value)),
+		minColdBrightness.value,
+		maxColdBrightness.value,
+	);
+
 	sendMessageToMCUThrottled(
-		`${Command.SET_COLOR} ${getColorFromBrightnessAndColorTemperature(newBrightness[0]!, colorTemperature.value[0]!)}`,
+		`${Command.SET_COLOR} ${getColorFromBrightnessAndColdBrightness(newBrightness, coldBrightness.value)}`,
 	);
 });
 
-watch(colorTemperature, (newColorTemperature) => {
-	stateChanged.value = true;
-	sendMessageToMCUThrottled(
-		`${Command.SET_COLOR} ${getColorFromBrightnessAndColorTemperature(brightness.value[0]!, newColorTemperature[0]!)}`,
-	);
-});
+watchEffect(() =>
+	console.log(
+		brightness.value,
+		coldBrightness.value,
+		getColorFromBrightnessAndColdBrightness(brightness.value, coldBrightness.value),
+	),
+);
 
-function getTemperatureInKelvin(value: number) {
-	return 3000 + roundDownToNearest((value / 255) * 3000, 10);
-}
+watch([minColdBrightness, maxColdBrightness], ([newMinColdBrightness, newMaxColdBrightness]) => {
+	coldBrightness.value = clamp(coldBrightness.value, newMinColdBrightness, newMaxColdBrightness);
+});
 
 function save(): void {
 	stateChanged.value = false;
 	sendMessageToMCUThrottled(`${Command.SAVE}`);
+}
+
+function getColorTemperature(brightness: number, coldBrightness: number): number {
+	if (coldBrightness === 0) return Number.POSITIVE_INFINITY;
+
+	const warmBrightness = brightness - coldBrightness;
+	return warmBrightness / coldBrightness;
+}
+
+function onColdBrightnessSliderChange(newColdBrightness: number): void {
+	stateChanged.value = true;
+	coldBrightness.value = newColdBrightness;
+	colorTemperature.value = getColorTemperature(brightness.value, newColdBrightness);
+	sendMessageToMCUThrottled(
+		`${Command.SET_COLOR} ${getColorFromBrightnessAndColdBrightness(brightness.value, newColdBrightness)}`,
+	);
 }
 </script>
 
@@ -55,8 +123,13 @@ function save(): void {
 				<Label class="flex w-full justify-center">Brightness</Label>
 				<div class="grid grid-cols-[min-content_1fr_min-content] p-4 gap-x-4">
 					<Label>0%</Label>
-					<Slider :min="0" :max="255" v-model="brightness" show-thumb-value>
-						<template #thumb-value="{ value }"> {{ Math.round((value / 255) * 100) }}% </template>
+					<Slider
+						:min="1"
+						:max="510"
+						:model-value="[brightness]"
+						@update:model-value="($event) => (brightness = $event![0])"
+					>
+						<template #thumb-value> {{ brightnessPercent }}% </template>
 					</Slider>
 					<Label>100%</Label>
 				</div>
@@ -65,10 +138,15 @@ function save(): void {
 				<Label class="flex w-full justify-center">Color temperature</Label>
 				<div class="grid grid-cols-[min-content_1fr_min-content] p-4 gap-x-4">
 					<Label>3000k</Label>
-					<Slider class="color-temp-slider" :min="0" :max="255" v-model="colorTemperature" show-thumb-value>
-						<template #thumb-value="{ value }">
-							{{ value }}&nbsp;≈&nbsp;{{ getTemperatureInKelvin(value) }}k
-						</template>
+					<Slider
+						class="cold-brightness-slider"
+						:min="minColdBrightness"
+						:max="maxColdBrightness"
+						:step="1"
+						:model-value="[coldBrightness]"
+						@update:model-value="onColdBrightnessSliderChange($event![0])"
+					>
+						<template #thumb-value> {{ colorTemperatureInKelvin }}k </template>
 					</Slider>
 					<Label>6000k</Label>
 				</div>
@@ -106,11 +184,11 @@ function save(): void {
 	opacity: 0;
 }
 
-.color-temp-slider :deep([data-slot='slider-track']) {
-	background: linear-gradient(to right, #ffd27f, #bbdfff);
+.cold-brightness-slider :deep([data-slot='slider-track']) {
+	background: v-bind(gradient);
 }
 
-.color-temp-slider :deep([data-slot='slider-range']) {
+.cold-brightness-slider :deep([data-slot='slider-range']) {
 	background: transparent;
 }
 </style>

@@ -1,4 +1,5 @@
 import { EffectType } from '@/types/wsTypes';
+import { getBrightnessAndColorTemperatureFromColor as getBrightnessAndColdBrightnessFromColor } from '@/utils/color';
 
 export interface InitialEffectState {
 	type: EffectType;
@@ -8,7 +9,7 @@ export interface InitialEffectState {
 
 export interface InitialState {
 	brightness: number;
-	colorTemperature: number;
+	coldBrightness: number;
 	onEffect: InitialEffectState;
 	offEffect: InitialEffectState;
 }
@@ -27,8 +28,8 @@ function getDummyInitialState(): Promise<InitialState> {
 	return new Promise((res) =>
 		setTimeout(() => {
 			res({
-				brightness: 127,
-				colorTemperature: 127,
+				brightness: 255,
+				coldBrightness: 127,
 				onEffect: {
 					type: EffectType.LIGHTSABER[0],
 					duration: 3000,
@@ -56,15 +57,10 @@ async function getInitialStateFromMCU(): Promise<InitialState> {
 function parseInitialState(initialStateText: string): InitialState {
 	const states = initialStateText.split(' ');
 
-	const color = Number(states[0]);
-	const coldBrightness = (color >> 16) & 0xff;
-	const warmBrightness = (color >> 8) & 0xff;
-	const brightness = coldBrightness + warmBrightness;
-	const colorTemperature = warmBrightness === 0 ? 255 : coldBrightness / warmBrightness;
+	const color = BigInt(states[0]!);
 
 	return {
-		brightness,
-		colorTemperature,
+		...getBrightnessAndColdBrightnessFromColor(color),
 		onEffect: {
 			type: Number(states[1]) as EffectType,
 			duration: Number(states[2]),
