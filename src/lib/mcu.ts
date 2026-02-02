@@ -1,3 +1,4 @@
+import { throttleQueue } from '@/utils/functions';
 import { throttle } from 'lodash-es';
 
 export const WEBSOCKET_THROTTLE_MS = 100;
@@ -26,3 +27,5 @@ export const sendMessageToMCUThrottled = throttle(sendMessageToMCU, WEBSOCKET_TH
 	leading: true,
 	trailing: true,
 });
+
+export const sendMessageToMCUThrottledQueued = throttleQueue(sendMessageToMCU, WEBSOCKET_THROTTLE_MS);
