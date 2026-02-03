@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, provide, ref, watch, watchEffect } from 'vue';
+import { computed, provide, ref, watch } from 'vue';
 
 import EffectPanel from '@/components/EffectPanel.vue';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { initialStatePromise } from '@/config';
 import { initialStateInjectionKey } from '@/injectionKeys';
-import { sendMessageToMCUThrottled } from '@/lib/mcu';
+import { sendMessageToMCU, sendMessageToMCUThrottled } from '@/lib/mcu';
 import { stateChanged } from '@/store/stateChanged';
 import { Command } from '@/types/wsTypes';
 import { getColorFromBrightnessAndColdBrightness } from '@/utils/color';
@@ -72,27 +72,21 @@ watch(brightness, (newBrightness) => {
 		minColdBrightness.value,
 		maxColdBrightness.value,
 	);
-
-	sendMessageToMCUThrottled(
-		`${Command.SET_COLOR} ${getColorFromBrightnessAndColdBrightness(newBrightness, coldBrightness.value)}`,
-	);
 });
-
-watchEffect(() =>
-	console.log(
-		brightness.value,
-		coldBrightness.value,
-		getColorFromBrightnessAndColdBrightness(brightness.value, coldBrightness.value),
-	),
-);
 
 watch([minColdBrightness, maxColdBrightness], ([newMinColdBrightness, newMaxColdBrightness]) => {
 	coldBrightness.value = clamp(coldBrightness.value, newMinColdBrightness, newMaxColdBrightness);
 });
 
+watch([brightness, coldBrightness], ([newBrightness, newColdBrightness]) => {
+	sendMessageToMCUThrottled(
+		`${Command.SET_COLOR} ${getColorFromBrightnessAndColdBrightness(newBrightness, newColdBrightness)}`,
+	);
+});
+
 function save(): void {
 	stateChanged.value = false;
-	sendMessageToMCUThrottled(`${Command.SAVE}`);
+	sendMessageToMCU(`${Command.SAVE}`);
 }
 
 function getColorTemperature(brightness: number, coldBrightness: number): number {
@@ -106,9 +100,6 @@ function onColdBrightnessSliderChange(newColdBrightness: number): void {
 	stateChanged.value = true;
 	coldBrightness.value = newColdBrightness;
 	colorTemperature.value = getColorTemperature(brightness.value, newColdBrightness);
-	sendMessageToMCUThrottled(
-		`${Command.SET_COLOR} ${getColorFromBrightnessAndColdBrightness(brightness.value, newColdBrightness)}`,
-	);
 }
 </script>
 

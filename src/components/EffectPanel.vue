@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/number-field';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { initialStateInjectionKey } from '@/injectionKeys';
-import { sendMessageToMCUThrottled, sendMessageToMCUThrottledQueued } from '@/lib/mcu';
+import { sendMessageToMCU, sendMessageToMCUThrottled } from '@/lib/mcu';
 import { stateChanged } from '@/store/stateChanged';
 import { Command, EffectParameter, EffectType } from '@/types/wsTypes';
 import { inject, ref, watch } from 'vue';
@@ -37,12 +37,12 @@ const startLedIndex = ref(initialEffectState.startLedIndex);
 
 watch(effect, (newEffect) => {
 	stateChanged.value = true;
-	sendMessageToMCUThrottledQueued(`${setCommand} ${newEffect}`);
+	sendMessageToMCU(`${setCommand} ${newEffect}`);
 	if (newEffect !== EffectType.NONE[0]) {
-		sendMessageToMCUThrottledQueued(getDurationMessage(duration.value));
+		sendMessageToMCU(getDurationMessage(duration.value));
 	}
 	if (newEffect === EffectType.LIGHTSABER[0]) {
-		sendMessageToMCUThrottledQueued(getStartLedIndexMessage(startLedIndex.value));
+		sendMessageToMCU(getStartLedIndexMessage(startLedIndex.value));
 	}
 });
 
