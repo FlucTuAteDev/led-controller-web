@@ -1,22 +1,8 @@
+import type { State } from '@/store/state';
 import { EffectType } from '@/types/wsTypes';
-import { getBrightnessAndColorTemperatureFromColor as getBrightnessAndColdBrightnessFromColor } from '@/utils/color';
+import { getBrightnessAndColdBrightnessFromColor } from '@/utils/color';
 
-export interface InitialEffectState {
-	type: EffectType;
-	duration: number;
-	startLedIndex: number;
-}
-
-export interface InitialState {
-	brightness: number;
-	coldBrightness: number;
-	onEffect: InitialEffectState;
-	offEffect: InitialEffectState;
-}
-
-export const initialStatePromise = getInitialState();
-
-function getInitialState(): Promise<InitialState> {
+export function getInitialState(): Promise<State> {
 	if (import.meta.env.DEV) {
 		return getDummyInitialState();
 	}
@@ -24,12 +10,12 @@ function getInitialState(): Promise<InitialState> {
 	return getInitialStateFromMCU();
 }
 
-function getDummyInitialState(): Promise<InitialState> {
+function getDummyInitialState(): Promise<State> {
 	return new Promise((res) =>
 		setTimeout(() => {
 			res({
 				brightness: 255,
-				coldBrightness: 127,
+				coldBrightness: 128,
 				onEffect: {
 					type: EffectType.LIGHTSABER[0],
 					duration: 3000,
@@ -45,7 +31,7 @@ function getDummyInitialState(): Promise<InitialState> {
 	);
 }
 
-async function getInitialStateFromMCU(): Promise<InitialState> {
+async function getInitialStateFromMCU(): Promise<State> {
 	const res = await fetch('/api/state');
 	if (!res.ok) throw new Error("Couldn't connect to api!");
 
@@ -54,7 +40,7 @@ async function getInitialStateFromMCU(): Promise<InitialState> {
 	return parseInitialState(result);
 }
 
-function parseInitialState(initialStateText: string): InitialState {
+function parseInitialState(initialStateText: string): State {
 	const states = initialStateText.split(' ');
 
 	const color = BigInt(states[0]!);

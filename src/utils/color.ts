@@ -1,10 +1,10 @@
-export const getColorFromBrightnessAndColdBrightness = (brightness: number, coldBrightness: number): number => {
+export const getColorFromBrightnessAndColdBrightness = (brightness: number, coldBrightness: number): bigint => {
 	const warmBrightness = brightness - coldBrightness;
 
-	return (coldBrightness << 16) | (warmBrightness << 8);
+	return BigInt((coldBrightness << 16) | (warmBrightness << 8));
 };
 
-export const getBrightnessAndColorTemperatureFromColor = (color: bigint) => {
+export const getBrightnessAndColdBrightnessFromColor = (color: bigint) => {
 	const coldBrightness = Number((color >> 16n) & 0xffn);
 	const warmBrightness = Number((color >> 8n) & 0xffn);
 	const brightness = coldBrightness + warmBrightness;
